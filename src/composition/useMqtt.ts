@@ -1,8 +1,11 @@
+import mitt, { Handler } from "mitt";
 import * as mqtt from "mqtt/dist/mqtt.min";
 import { ref } from "vue";
 import type { PUBLISH_TYPE } from "../config/mqtt";
 
 export default function useMqtt(connection: mqtt.IClientOptions) {
+  const emitter = mitt();
+  const key = Symbol("MESSAGE_CHANGE");
   let client = ref({
     connected: false,
   } as mqtt.MqttClient);
@@ -62,6 +65,7 @@ export default function useMqtt(connection: mqtt.IClientOptions) {
           receivedMessages.value = receivedMessages.value.concat(
             message.toString()
           );
+          emitter.emit(key, { message, topic });
           console.log(`received message: ${message} from topic: ${topic}`);
         });
       }
@@ -129,6 +133,16 @@ export default function useMqtt(connection: mqtt.IClientOptions) {
   };
 
   /**
+   * 监听mqtt消息
+   * @param handler 回调句柄
+   */
+  const listenerMessageChange = (
+    handler: (message: { message: Buffer; topic: string }) => void
+  ) => {
+    emitter.on(key, handler as Handler);
+  };
+
+  /**
    * 断开mqtt
    */
   const destroyConnection = () => {
@@ -144,6 +158,7 @@ export default function useMqtt(connection: mqtt.IClientOptions) {
         console.log("disconnect error:", error);
       }
     }
+    emitter.off(key);
   };
 
   return {
@@ -153,5 +168,6 @@ export default function useMqtt(connection: mqtt.IClientOptions) {
     doUnSubscribe,
     doPublish,
     destroyConnection,
+    listenerMessageChange,
   };
 }

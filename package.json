@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "mitt": "^3.0.1",
     "mqtt": "^5.0.5",
     "vue": "^3.3.4"
   },

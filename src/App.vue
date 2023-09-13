@@ -4,8 +4,13 @@ import HelloWorld from "./components/HelloWorld.vue";
 import useMqtt from "./composition/useMqtt";
 import { CONNECTION, SUBSCRIPTIONS, PUBLISH_TEST } from "./config/mqtt";
 
-const { createConnection, doSubscribe, destroyConnection, doPublish } =
-  useMqtt(CONNECTION);
+const {
+  createConnection,
+  doSubscribe,
+  destroyConnection,
+  doPublish,
+  listenerMessageChange,
+} = useMqtt(CONNECTION);
 const subscribe = () => {
   SUBSCRIPTIONS.forEach((el) => {
     doSubscribe(el);
@@ -14,6 +19,10 @@ const subscribe = () => {
 const publish = () => {
   doPublish(PUBLISH_TEST);
 };
+listenerMessageChange((message) => {
+  console.log(message.message);
+  console.log(message.topic);
+});
 onMounted(() => {
   createConnection();
 });

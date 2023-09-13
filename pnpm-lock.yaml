@@ -2,6 +2,7 @@ lockfileVersion: 5.4
 
 specifiers:
   '@vitejs/plugin-vue': ^4.2.3
+  mitt: ^3.0.1
   mqtt: ^5.0.5
   typescript: ^5.0.2
   vite: ^4.4.5
@@ -9,6 +10,7 @@ specifiers:
   vue-tsc: ^1.8.5
 
 dependencies:
+  mitt: 3.0.1
   mqtt: 5.0.5
   vue: 3.3.4
 
@@ -608,6 +610,10 @@ packages:
 
   /minimist/1.2.8:
     resolution: {integrity: sha512-2yyAR8qBkN3YuheJanUpWC5U3bb5osDywNB8RzDVlDwDHbocAJveqqj1u8+SVD7jkWT4yvsHCpWqqWqAxb0zCA==}
+    dev: false
+
+  /mitt/3.0.1:
+    resolution: {integrity: sha512-vKivATfr97l2/QBCYAkXYDbrIWPM2IIKEl7YPhjCvKlG3kE2gm+uBo6nEXK3M5/Ffh/FLpKExzOQ3JJoJGFKBw==}
     dev: false
 
   /mqtt-packet/8.2.0:
