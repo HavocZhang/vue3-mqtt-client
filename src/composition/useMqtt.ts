@@ -4,10 +4,10 @@ import { Ref, ref, toRef, watch } from "vue";
 export type MqttStatus = "OPEN" | "CONNECTING" | "CLOSED"
 
 export interface UseMqttOptions {
-  onConnected?: (client: mqtt.MqttClient) => void,
-  onDisconnected?: (client: mqtt.MqttClient) => void,
-  onError?: (client: mqtt.MqttClient, error: Error | mqtt.ErrorWithReasonCode) => void,
-  onMessage?: (client: mqtt.MqttClient, topic: string, message: Buffer) => void,
+  onConnected?: () => void,
+  onDisconnected?: () => void,
+  onError?: (error: Error | mqtt.ErrorWithReasonCode) => void,
+  onMessage?: (topic: string, message: Buffer) => void,
   autoReconnect?: boolean | {
     retries?: number | (() => boolean)
     delay?: number
@@ -59,20 +59,20 @@ export default function useMqtt(connection: Ref<mqtt.IClientOptions | undefined>
     status.value = "CONNECTING"
     clientRef.value.on("connect", () => {
       status.value = "OPEN"
-      onConnected?.(client!)
+      onConnected?.()
     });
     clientRef.value.on("close", () => {
       status.value = "CLOSED"
       clientRef.value = undefined
-      onDisconnected?.(client)
+      onDisconnected?.()
     })
 
     clientRef.value.on("error", (error) => {
-      onError?.(client, error)
+      onError?.(error)
     });
 
     clientRef.value.on("message", (topic, message) => {
-      onMessage?.(client, topic, message)
+      onMessage?.(topic, message)
     });
   }
 

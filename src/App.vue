@@ -15,8 +15,7 @@ const connection = ref<mqtt.IClientOptions>({
   reconnectPeriod: 4000,
 });
 const { status, open, close } = useMqtt(connection, {
-  onMessage(client, topic, message) {
-    console.log(client);
+  onMessage(topic, message) {
     console.log(topic);
     console.log(message);
   },
