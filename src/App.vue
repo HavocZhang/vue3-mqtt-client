@@ -1,34 +1,25 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted } from "vue";
+import { ref } from "vue";
 import HelloWorld from "./components/HelloWorld.vue";
 import useMqtt from "./composition/useMqtt";
-import { CONNECTION, SUBSCRIPTIONS, PUBLISH_TEST } from "./config/mqtt";
-
-const {
-  createConnection,
-  doSubscribe,
-  destroyConnection,
-  doPublish,
-  listenerMessageChange,
-} = useMqtt(CONNECTION);
-const subscribe = () => {
-  SUBSCRIPTIONS.forEach((el) => {
-    doSubscribe(el);
-  });
-};
-const publish = () => {
-  doPublish(PUBLISH_TEST);
-};
-listenerMessageChange((message) => {
-  console.log(message.message);
-  console.log(message.topic);
+import * as mqtt from "mqtt/dist/mqtt.min";
+const connection = ref<mqtt.IClientOptions>({
+  protocol: "ws",
+  host: "broker.emqx.io",
+  port: 8083,
+  clientId: "emqx_vue3_" + Math.random().toString(16).substring(2, 8),
+  username: "emqx_test",
+  password: "emqx_test",
+  clean: true,
+  connectTimeout: 30 * 1000,
+  reconnectPeriod: 4000,
 });
-onMounted(() => {
-  createConnection();
-});
-
-onUnmounted(() => {
-  destroyConnection();
+const { status, open, close } = useMqtt(connection, {
+  onMessage(client, topic, message) {
+    console.log(client);
+    console.log(topic);
+    console.log(message);
+  },
 });
 </script>
 
@@ -42,8 +33,9 @@ onUnmounted(() => {
     </a>
   </div>
   <HelloWorld msg="Vite + Vue" />
-  <button @click="subscribe">订阅</button>
-  <button @click="publish">发送</button>
+  <h1>当前连接状态{{ status }}</h1>
+  <button @click="open">开启</button>
+  <button @click="close">关闭</button>
 </template>
 
 <style scoped>

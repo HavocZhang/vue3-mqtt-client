@@ -1,173 +1,96 @@
-import mitt, { Handler } from "mitt";
 import * as mqtt from "mqtt/dist/mqtt.min";
-import { ref } from "vue";
-import type { PUBLISH_TYPE } from "../config/mqtt";
+import { Ref, ref, toRef, watch } from "vue";
 
-export default function useMqtt(connection: mqtt.IClientOptions) {
-  const emitter = mitt();
-  const key = Symbol("MESSAGE_CHANGE");
-  let client = ref({
-    connected: false,
-  } as mqtt.MqttClient);
-  const receivedMessages = ref("");
-  const subscribedSuccess = ref(false);
-  /**
-   * 登录状态
-   */
-  const loadingType = ref("");
-  const retryTimes = ref(0);
+export type MqttStatus = "OPEN" | "CONNECTING" | "CLOSED"
 
-  const initData = () => {
-    client.value = {
-      connected: false,
-    } as mqtt.MqttClient;
-    retryTimes.value = 0;
-    loadingType.value = "";
-    subscribedSuccess.value = false;
-  };
+export interface UseMqttOptions {
+  onConnected?: (client: mqtt.MqttClient) => void,
+  onDisconnected?: (client: mqtt.MqttClient) => void,
+  onError?: (client: mqtt.MqttClient, error: Error | mqtt.ErrorWithReasonCode) => void,
+  onMessage?: (client: mqtt.MqttClient, topic: string, message: Buffer) => void,
+  autoReconnect?: boolean | {
+    retries?: number | (() => boolean)
+    delay?: number
+    onFailed?: Function
+  },
+  immediate?: boolean
+}
 
-  const handleOnReConnect = () => {
-    retryTimes.value += 1;
-    if (retryTimes.value > 5) {
-      try {
-        client.value.end();
-        initData();
-        console.log("connection maxReconnectTimes limit, stop retry");
-      } catch (error) {
-        console.log("handleOnReConnect catch error:", error);
-      }
+export default function useMqtt(connection: Ref<mqtt.IClientOptions | undefined>, options: UseMqttOptions = {}) {
+  const { onConnected, onDisconnected, onError, onMessage, immediate = true } = options
+  const status = ref<MqttStatus>('CLOSED')
+  const clientRef = ref<mqtt.MqttClient | undefined>()
+  const connectionRef = toRef(connection)
+  let explicitlyClosed = false
+  let retried = 0
+  let messageData: (string | Buffer)[] = []
+  const _publishBuffer = (topic: string,) => {
+    if (messageData.length && clientRef.value && status.value === "OPEN") {
+      for (const buffer of messageData)
+        clientRef.value.publish(topic, buffer)
+      messageData = []
     }
-  };
+  }
+  const close = () => {
+    if (!clientRef.value)
+      return
+    explicitlyClosed = true
+    clientRef.value.end()
+  }
 
-  /**
-   * 连接mqtt
-   */
-  const createConnection = () => {
-    try {
-      loadingType.value = "connect";
-      const { protocol, host, port, ...options } = connection;
-      const connectUrl = `${protocol}://${host}:${port}/mqtt`;
-      client.value = mqtt.connect(connectUrl, options);
-
-      if (client.value.on) {
-        client.value.on("connect", () => {
-          loadingType.value = "";
-          console.log("connection successful");
-        });
-
-        client.value.on("reconnect", handleOnReConnect);
-
-        client.value.on("error", (error) => {
-          console.log("connection error:", error);
-        });
-
-        client.value.on("message", (topic: string, message) => {
-          receivedMessages.value = receivedMessages.value.concat(
-            message.toString()
-          );
-          emitter.emit(key, { message, topic });
-          console.log(`received message: ${message} from topic: ${topic}`);
-        });
-      }
-    } catch (error) {
-      loadingType.value = "";
-      console.log("mqtt.connect error:", error);
+  const send = (topic: string, message: string | Buffer, useBuffer = true) => {
+    if (!clientRef.value || status.value !== "OPEN") {
+      if (useBuffer)
+        messageData.push(message)
+      return
     }
-  };
+    _publishBuffer(topic)
+    clientRef.value.publish(topic, message)
+    return true
+  }
 
-  /**
-   * 订阅主题
-   * @param subscription 主题
-   */
-  const doSubscribe = (subscription: mqtt.ISubscriptionRequest) => {
-    loadingType.value = "subscribe";
-    const { topic, qos } = subscription;
-    client.value.subscribe(
-      topic,
-      { qos },
-      (err: Error | null, granted: mqtt.ISubscriptionGrant[]) => {
-        loadingType.value = "";
-        if (err) {
-          console.log("subscribe error:", err);
-          return;
-        }
-        subscribedSuccess.value = true;
-        console.log("subscribe successfully:", granted);
-      }
-    );
-  };
-
-  /**
-   * 取消订阅主题
-   * @param subscription 主题
-   */
-  const doUnSubscribe = (subscription: mqtt.ISubscriptionRequest) => {
-    loadingType.value = "unsubscribe";
-    const { topic, qos } = subscription;
-    client.value.unsubscribe(topic, { qos }, (error) => {
-      loadingType.value = "";
-      subscribedSuccess.value = false;
-      if (error) {
-        console.log("unsubscribe error:", error);
-        return;
-      }
-      console.log(`unsubscribed topic: ${topic}`);
+  const _init = () => {
+    if (explicitlyClosed || typeof connectionRef.value === "undefined")
+      return
+    const { protocol, host, port, ...options } = connectionRef.value;
+    const connectUrl = `${protocol}://${host}:${port}/mqtt`;
+    const client = mqtt.connect(connectUrl, options)
+    clientRef.value = client
+    status.value = "CONNECTING"
+    clientRef.value.on("connect", () => {
+      status.value = "OPEN"
+      onConnected?.(client!)
     });
-  };
+    clientRef.value.on("close", () => {
+      status.value = "CLOSED"
+      clientRef.value = undefined
+      onDisconnected?.(client)
+    })
 
-  /**
-   * 发布
-   * @param publish 发布内容
-   */
-  const doPublish = (publish: PUBLISH_TYPE) => {
-    loadingType.value = "publish";
-    const { topic, qos, payload } = publish;
-    client.value.publish(topic, payload, { qos }, (error) => {
-      loadingType.value = "";
-      if (error) {
-        console.log("publish error:", error);
-        return;
-      }
-      console.log(`published message: ${payload}`);
+    clientRef.value.on("error", (error) => {
+      onError?.(client, error)
     });
-  };
 
-  /**
-   * 监听mqtt消息
-   * @param handler 回调句柄
-   */
-  const listenerMessageChange = (
-    handler: (message: { message: Buffer; topic: string }) => void
-  ) => {
-    emitter.on(key, handler as Handler);
-  };
+    clientRef.value.on("message", (topic, message) => {
+      onMessage?.(client, topic, message)
+    });
+  }
 
-  /**
-   * 断开mqtt
-   */
-  const destroyConnection = () => {
-    if (client.value.connected) {
-      loadingType.value = "disconnect";
-      try {
-        client.value.end(false, () => {
-          initData();
-          console.log("disconnected successfully");
-        });
-      } catch (error) {
-        loadingType.value = "";
-        console.log("disconnect error:", error);
-      }
-    }
-    emitter.off(key);
-  };
+  const open = () => {
+    close()
+    explicitlyClosed = false
+    retried = 0
+    _init()
+  }
+
+  if (immediate)
+    watch(connectionRef, open, { immediate: true })
 
   return {
-    loadingType,
-    createConnection,
-    doSubscribe,
-    doUnSubscribe,
-    doPublish,
-    destroyConnection,
-    listenerMessageChange,
+    status,
+    close,
+    send,
+    open,
+    client: clientRef
   };
 }

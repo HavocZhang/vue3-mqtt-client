@@ -1,4 +1,5 @@
 import * as mqtt from "mqtt/dist/mqtt.min";
+import { ref } from "vue";
 
 /**
  * 发布内容类型定义
@@ -12,7 +13,7 @@ export type PUBLISH_TYPE = {
 /**
  * 连接mqtt信息
  */
-export const CONNECTION: mqtt.IClientOptions = {
+export const CONNECTION = ref<mqtt.IClientOptions>({
   protocol: "ws",
   host: "broker.emqx.io",
   port: 8083,
@@ -22,7 +23,7 @@ export const CONNECTION: mqtt.IClientOptions = {
   clean: true,
   connectTimeout: 30 * 1000,
   reconnectPeriod: 4000,
-};
+});
 
 /**
  * 订阅主题数组
