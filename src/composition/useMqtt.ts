@@ -35,7 +35,7 @@ export default function useMqtt(connection: Ref<mqtt.IClientOptions | undefined>
     if (!clientRef.value)
       return
     explicitlyClosed = true
-    clientRef.value.end()
+    clientRef.value.end(true)
   }
 
   const send = (topic: string, message: string | Buffer, useBuffer = true) => {
